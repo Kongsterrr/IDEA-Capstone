@@ -19,3 +19,15 @@ def search(request):
     return render(request, 'searchpaper/result.html', context) 
 
 
+# def similarweb(google sheet):
+# return total visit duration of different piracy sites 
+
+
+# seilinum crawl aiyifan 火力值
+
+
+
+# movie to overall streaming ratio: Aiyifan avengers moveis streaming volume / Aiyifan total streaming volume on Aiyifan
+
+
+# gpt translate 

@@ -3,6 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 import re
+import pandas as pd
 
 def getSimilarWebData(websiteDomainName):
     
@@ -46,13 +47,12 @@ def getSimilarWebData(websiteDomainName):
         # Close the browser
         driver.quit()
         
-        """
         # adjust average duation format
         if aveDuation:
-            # Split the time string into hours, minutes, and seconds
+            # split the time string into hours, minutes, and seconds
             hours, minutes, seconds = map(int, aveDuation.split(':'))
-            # Convert hours and minutes to total minutes
-            aveDuation_in_minutes = (hours * 60) + minutes
+            # convert hours, minutes, and seconds to total seconds
+            aveDuration_in_seconds = (hours * 3600) + (minutes * 60) + seconds
         else:
             return -1
         
@@ -66,13 +66,23 @@ def getSimilarWebData(websiteDomainName):
                 visits_in_number = float(visits)
         else:
             return -1
-        """
         
-    return (visits, aveDuation, us_traffic)
+        # adjust us traffic format
+        if (us_traffic != 'N/A'):
+            us_traffic_in_decimal = float(us_traffic.strip('%')) / 100
+        
+        # calculate output
+        if (us_traffic != 'N/A'):
+            total_us_visit_duration = visits_in_number * aveDuration_in_seconds * us_traffic_in_decimal
+        else: 
+            total_us_visit_duration = visits_in_number * aveDuration_in_seconds
+            
+    return total_us_visit_duration
         
 def main():
     
-    filename = "input.txt"
+    filename = "input_test.txt"
+    output_dic = {}
     
     # read piracy websites from file
     with open(filename, 'r') as file:
@@ -87,7 +97,15 @@ def main():
         # use a regular expression to remove "http://" or "https://" and "www."
         name = re.sub(r"https?://(www\d?\.)?", "", name)
 
-        print(getSimilarWebData(name))
+        # save line of data into dictionary
+        output_dic[name] = getSimilarWebData(name)
+        
+        df = pd.DataFrame(output_dic.items(), columns=['Piracy Sites', 'Total Visit Duration from US'])
+        
+        # Set the float format to display numbers without scientific notation
+        pd.options.display.float_format = '{:.1f}'.format
+
+    print(df)
         
 if __name__ == "__main__":
     main()

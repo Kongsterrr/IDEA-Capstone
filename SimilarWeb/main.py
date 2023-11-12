@@ -33,11 +33,34 @@ def getSimilarWebData(websiteDomainName):
         
         # Try to locate the US traffic data
         try:
-            us_traffic_element = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, '.wa-geography__country.wa-geography__legend-item .wa-geography__country-traffic-value')))
-            us_traffic = us_traffic_element.text
+            country_elements = WebDriverWait(driver, 10).until(
+                EC.presence_of_all_elements_located((By.CSS_SELECTOR, '.wa-geography__country.wa-geography__legend-item')))
+            
+            if country_elements and len(country_elements) == 6:
+                
+                for i, country_element in enumerate(country_elements):
+                    
+                    # find a country_info under current country_element
+                    country_info_div = country_element.find_element(By.CSS_SELECTOR, '.wa-geography__country-info')
+                    
+                    # find the <a> element under div_element
+                    country_name_anchor = country_info_div.find_element(By.TAG_NAME, 'a')
+                    
+                    # grab country name
+                    country_name = country_name_anchor.text
+                    
+                    # get us traffic or just get the least traffic
+                    if (country_name == "United States" or i == len(country_elements) - 2):
+                        
+                        country_traffic_div = country_info_div.find_element(By.CSS_SELECTOR, '.wa-geography__country-traffic')
+                        us_traffic = country_traffic_div.find_element(By.CSS_SELECTOR, '.wa-geography__country-traffic-value').text
+                        
+                        break
+            else:
+                return -1
+            
         except:
-            us_traffic = "N/A"
+            return -1
         
     except Exception as e:
         return -1
@@ -68,21 +91,20 @@ def getSimilarWebData(websiteDomainName):
             return -1
         
         # adjust us traffic format
-        if (us_traffic != 'N/A'):
-            us_traffic_in_decimal = float(us_traffic.strip('%')) / 100
+        us_traffic_in_decimal = float(us_traffic.strip('%')) / 100
         
         # calculate output
-        if (us_traffic != 'N/A'):
-            total_us_visit_duration = visits_in_number * aveDuration_in_seconds * us_traffic_in_decimal
-        else: 
-            total_us_visit_duration = visits_in_number * aveDuration_in_seconds
-            
-    return total_us_visit_duration
+        total_us_visit_duration = visits_in_number * aveDuration_in_seconds * us_traffic_in_decimal
+        return (visits_in_number, aveDuration_in_seconds, us_traffic_in_decimal, total_us_visit_duration)
+       
         
 def main():
     
     filename = "input_test.txt"
     output_dic = {}
+    visits = []
+    aveDuration = []
+    usTraffic = []
     
     # read piracy websites from file
     with open(filename, 'r') as file:
@@ -98,14 +120,30 @@ def main():
         name = re.sub(r"https?://(www\d?\.)?", "", name)
 
         # save line of data into dictionary
-        output_dic[name] = getSimilarWebData(name)
+        similarWebData = getSimilarWebData(name)
         
-        df = pd.DataFrame(output_dic.items(), columns=['Piracy Sites', 'Total Visit Duration from US'])
-        
-        # Set the float format to display numbers without scientific notation
-        pd.options.display.float_format = '{:.1f}'.format
+        if (similarWebData != -1):
+            # append data to 3 lists
+            visits.append(similarWebData[0])
+            aveDuration.append(similarWebData[1])
+            usTraffic.append(similarWebData[2] * 100)
+            
+            # append dictionary entry of the output
+            output_dic[name] = similarWebData[3]
+            
+    # create data frame
+    df = pd.DataFrame(output_dic.items(), columns=['Piracy Sites', 'Total Visit Duration from US'])
+    
+    # add three more columns of original data
+    df['Total Visits'] = visits
+    df['Average Visit Duration (in seconds)'] = aveDuration
+    df['US Traffic (in percentage)'] = usTraffic
+    
+    # set the float format to display numbers without scientific notation
+    pd.options.display.float_format = '{:.1f}'.format
 
     print(df)
+    
         
 if __name__ == "__main__":
     main()

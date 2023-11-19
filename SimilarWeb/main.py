@@ -4,6 +4,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 import re
 import pandas as pd
+import logging
 
 def getSimilarWebData(websiteDomainName):
     
@@ -29,6 +30,7 @@ def getSimilarWebData(websiteDomainName):
             visits = elements[0].text
             aveDuation = elements[3].text
         else:
+            print("Can't grab the 4 metrics")
             return -1
         
         # Try to locate the US traffic data
@@ -36,7 +38,9 @@ def getSimilarWebData(websiteDomainName):
             country_elements = WebDriverWait(driver, 10).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, '.wa-geography__country.wa-geography__legend-item')))
             
-            if country_elements and len(country_elements) == 6:
+            #print("Length of country_elements:", len(country_elements))
+            
+            if country_elements and len(country_elements) > 0:
                 
                 for i, country_element in enumerate(country_elements):
                     
@@ -44,25 +48,30 @@ def getSimilarWebData(websiteDomainName):
                     country_info_div = country_element.find_element(By.CSS_SELECTOR, '.wa-geography__country-info')
                     
                     # find the <a> element under div_element
-                    country_name_anchor = country_info_div.find_element(By.TAG_NAME, 'a')
+                    country_name_anchor = country_info_div.find_element(By.CSS_SELECTOR, '.wa-geography__country-name')
                     
                     # grab country name
                     country_name = country_name_anchor.text
                     
                     # get us traffic or just get the least traffic
-                    if (country_name == "United States" or i == len(country_elements) - 2):
+                    if country_name == "United States":
                         
                         country_traffic_div = country_info_div.find_element(By.CSS_SELECTOR, '.wa-geography__country-traffic')
                         us_traffic = country_traffic_div.find_element(By.CSS_SELECTOR, '.wa-geography__country-traffic-value').text
                         
+                        #print("Results!", us_traffic)
+                        
                         break
             else:
+                print("No geography items")
                 return -1
             
         except:
+            print("Can't grab the geography items")
             return -1
         
     except Exception as e:
+        print("Can't grab the 4 metrics")
         return -1
     
     finally:
@@ -72,11 +81,22 @@ def getSimilarWebData(websiteDomainName):
         
         # adjust average duation format
         if aveDuation:
-            # split the time string into hours, minutes, and seconds
-            hours, minutes, seconds = map(int, aveDuation.split(':'))
-            # convert hours, minutes, and seconds to total seconds
-            aveDuration_in_seconds = (hours * 3600) + (minutes * 60) + seconds
+            # Check if the time string is in the expected format
+            if ':' in aveDuation:
+                try:
+                    # Split the time string into hours, minutes, and seconds
+                    hours, minutes, seconds = map(int, aveDuation.split(':'))
+                    # Convert hours, minutes, and seconds to total seconds
+                    aveDuration_in_seconds = (hours * 3600) + (minutes * 60) + seconds
+                except ValueError:
+                    # Handle the case where conversion to integers fails
+                    print("Error: Invalid format for time duration.")
+                    return -1
+            else:
+                print("Error: Time duration should be in HH:MM:SS format.")
+                return -1
         else:
+            print("Average duration is empty")
             return -1
         
         # adjust visits format
@@ -88,10 +108,15 @@ def getSimilarWebData(websiteDomainName):
             else:
                 visits_in_number = float(visits)
         else:
+            print("Total Visits is empty")
             return -1
         
         # adjust us traffic format
-        us_traffic_in_decimal = float(us_traffic.strip('%')) / 100
+        if us_traffic and us_traffic.strip('%'): 
+            us_traffic_in_decimal = float(us_traffic.strip('%')) / 100
+        else:
+            print("US Traffic is empty or does not contain %")
+            return -1
         
         # calculate output
         total_us_visit_duration = visits_in_number * aveDuration_in_seconds * us_traffic_in_decimal
@@ -100,7 +125,7 @@ def getSimilarWebData(websiteDomainName):
         
 def main():
     
-    filename = "input_test.txt"
+    filename = "input.txt"
     output_dic = {}
     visits = []
     aveDuration = []
@@ -119,6 +144,8 @@ def main():
         # use a regular expression to remove "http://" or "https://" and "www."
         name = re.sub(r"https?://(www\d?\.)?", "", name)
 
+        print("Getting data for", name)
+
         # save line of data into dictionary
         similarWebData = getSimilarWebData(name)
         
@@ -130,6 +157,17 @@ def main():
             
             # append dictionary entry of the output
             output_dic[name] = similarWebData[3]
+        else:
+            visits.append(-1)
+            aveDuration.append(-1)
+            usTraffic.append(-1)
+            output_dic[name] = -1
+            
+        # Example: Check the lengths of the lists
+        print(len(visits), len(aveDuration), len(usTraffic), len(output_dic))
+        if (len(visits)!=len(aveDuration)!=len(usTraffic)!=len(output_dic)):
+            print("------Length are not equal------")
+
             
     # create data frame
     df = pd.DataFrame(output_dic.items(), columns=['Piracy Sites', 'Total Visit Duration from US'])
@@ -142,8 +180,10 @@ def main():
     # set the float format to display numbers without scientific notation
     pd.options.display.float_format = '{:.1f}'.format
 
-    print(df)
-    
+    # print(df)
+    # Save DataFrame to an Excel file
+    df.to_excel('output.xlsx', index=False)
+      
         
 if __name__ == "__main__":
     main()
